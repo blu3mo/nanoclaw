@@ -89,7 +89,10 @@ cp .env.example .env
 ```bash
 ASSISTANT_NAME=Blueclaw
 DISCORD_BOT_TOKEN=ここにステップ4でコピーしたトークンを貼り付ける
+TZ=Asia/Tokyo
 ```
+
+**TZ**: スケジュールタスク（朝8:00、夜23:00）の時刻に使われる。自分のタイムゾーンに合わせること。`Asia/Tokyo`, `America/New_York`, `Europe/London` 等の IANA 形式。
 
 ## ステップ 6: /setup を実行
 

@@ -11,9 +11,21 @@ interface ShareListProps {
 export default function ShareList({ shares, onDeactivate }: ShareListProps) {
   const [copiedToken, setCopiedToken] = useState<string | null>(null);
 
-  const copyUrl = (token: string) => {
+  const copyUrl = async (token: string) => {
     const url = `${window.location.origin}/share/${token}`;
-    navigator.clipboard.writeText(url);
+    try {
+      await navigator.clipboard.writeText(url);
+    } catch {
+      // Fallback for HTTP (non-HTTPS) contexts
+      const textarea = document.createElement("textarea");
+      textarea.value = url;
+      textarea.style.position = "fixed";
+      textarea.style.opacity = "0";
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand("copy");
+      document.body.removeChild(textarea);
+    }
     setCopiedToken(token);
     setTimeout(() => setCopiedToken(null), 2000);
   };

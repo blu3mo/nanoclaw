@@ -204,5 +204,35 @@ ADHD脳の動機づけトリガー（Interest / Novelty / Challenge / Urgency）
 1. 自己紹介（Blueclawとは何か、何をするか簡潔に）
 2. kanban.md, USER.md の初期化
 3. ユーザーの基本情報ヒアリング → USER.md に記録
-4. 朝のセッション（cron: `0 8 * * *`）と夜のセッション（cron: `0 23 * * *`）をスケジュール登録
+4. 以下のスケジュールタスクを登録:
+   - 朝のセッション（cron: `0 8 * * *`、context_mode: group）
+   - 夜のセッション（cron: `0 23 * * *`、context_mode: group）
+   - **Heartbeat チェック**（interval: `1200000`（20分）、下記参照）
 5. 初回の朝のセッションを開始
+
+### Heartbeat タスク
+
+20分ごとに「ユーザーが直近の Blueclaw メッセージに返信しているか」を軽量チェックし、未返信なら nudge を送る。API コスト削減のため `script` で事前判定する。
+
+登録時のパラメータ:
+- `schedule_type`: `interval`
+- `schedule_value`: `1200000`
+- `context_mode`: `group`
+- `script`:
+```bash
+#!/bin/bash
+DB="/workspace/project/store/messages.db"
+CHAT_JID="$NANOCLAW_CHAT_JID"
+LAST_BOT=$(sqlite3 "$DB" "SELECT MAX(timestamp) FROM messages WHERE chat_jid='$CHAT_JID' AND is_bot_message=1")
+if [ -z "$LAST_BOT" ]; then
+  echo '{"wakeAgent": false}'
+  exit 0
+fi
+USER_REPLY=$(sqlite3 "$DB" "SELECT COUNT(*) FROM messages WHERE chat_jid='$CHAT_JID' AND timestamp>'$LAST_BOT' AND is_bot_message=0 AND content != ''")
+if [ "$USER_REPLY" -gt 0 ]; then
+  echo '{"wakeAgent": false}'
+else
+  echo '{"wakeAgent": true, "data": {"reason": "no_reply_since_last_checkin", "last_bot_ts": "'"$LAST_BOT"'"}}'
+fi
+```
+- `prompt`: 「ユーザーが直近のメッセージに返信していない。状況に応じて短く声をかける。鬱陶しくならないように。前回何を話していたかを踏まえて、自然なフォローアップをする。」

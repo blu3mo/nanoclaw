@@ -50,19 +50,23 @@ export default function DashboardPage() {
   const [recentFiles, setRecentFiles] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [errandsContent, setErrandsContent] = useState<string>("");
   const [editingKanban, setEditingKanban] = useState(false);
   const [editingUser, setEditingUser] = useState(false);
-  const [activeTab, setActiveTab] = useState<"kanban" | "user" | "daily">("kanban");
+  const [editingErrands, setEditingErrands] = useState(false);
+  const [activeTab, setActiveTab] = useState<"kanban" | "errands" | "user" | "daily">("kanban");
   const [dailyFiles, setDailyFiles] = useState<{ name: string; content: string }[]>([]);
   const [selectedDaily, setSelectedDaily] = useState<string | null>(null);
   const [savingKanban, setSavingKanban] = useState(false);
   const [savingUser, setSavingUser] = useState(false);
+  const [savingErrands, setSavingErrands] = useState(false);
 
   useEffect(() => {
     async function fetchData() {
       try {
-        const [kanbanRes, userRes, tasksRes, filesRes] = await Promise.allSettled([
+        const [kanbanRes, errandsRes, userRes, tasksRes, filesRes] = await Promise.allSettled([
           fetch("/api/files?path=kanban.md"),
+          fetch("/api/files?path=errands.md"),
           fetch("/api/files?path=USER.md"),
           fetch("/api/tasks"),
           fetch("/api/files/list?dir=daily"),
@@ -71,6 +75,11 @@ export default function DashboardPage() {
         if (kanbanRes.status === "fulfilled" && kanbanRes.value.ok) {
           const data = await kanbanRes.value.json();
           setKanbanContent(data.content || "");
+        }
+
+        if (errandsRes.status === "fulfilled" && errandsRes.value.ok) {
+          const data = await errandsRes.value.json();
+          setErrandsContent(data.content || "");
         }
 
         if (userRes.status === "fulfilled" && userRes.value.ok) {
@@ -123,6 +132,23 @@ export default function DashboardPage() {
     }
   };
 
+  const saveErrands = async (content: string) => {
+    setSavingErrands(true);
+    try {
+      await fetch("/api/files", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ path: "errands.md", content }),
+      });
+      setErrandsContent(content);
+      setEditingErrands(false);
+    } catch (err) {
+      console.error("Save errands error:", err);
+    } finally {
+      setSavingErrands(false);
+    }
+  };
+
   const saveUser = async (content: string) => {
     setSavingUser(true);
     try {
@@ -158,6 +184,7 @@ export default function DashboardPage() {
 
   const tabs = [
     { id: "kanban" as const, label: "Kanban", emoji: "📋" },
+    { id: "errands" as const, label: "Errands", emoji: "⚡" },
     { id: "user" as const, label: "Profile", emoji: "👤" },
     { id: "daily" as const, label: "Daily", emoji: "📅" },
   ];
@@ -237,6 +264,39 @@ export default function DashboardPage() {
                         ) : (
                           <p className="py-10 text-center text-sm text-stone-400">
                             No kanban.md found yet.
+                          </p>
+                        )}
+                      </div>
+                    )}
+
+                    {activeTab === "errands" && (
+                      <div>
+                        <div className="mb-4 flex items-center justify-between">
+                          <span className="text-[10px] font-medium uppercase tracking-wider text-stone-400">
+                            errands.md
+                          </span>
+                          <button
+                            onClick={() => setEditingErrands(!editingErrands)}
+                            className="rounded-lg px-3 py-1.5 text-xs font-medium text-indigo-600 transition-colors hover:bg-indigo-50"
+                          >
+                            {editingErrands ? "Cancel" : "Edit"}
+                          </button>
+                        </div>
+                        {editingErrands ? (
+                          <MarkdownEditor
+                            initialContent={errandsContent}
+                            onSave={saveErrands}
+                            saving={savingErrands}
+                          />
+                        ) : errandsContent ? (
+                          <div className="prose prose-stone prose-sm max-w-none prose-headings:font-semibold prose-h2:border-b prose-h2:border-stone-100 prose-h2:pb-2 prose-h2:text-base prose-h3:text-sm prose-p:text-stone-600 prose-strong:text-stone-800 prose-li:text-stone-600 prose-li:marker:text-stone-400">
+                            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                              {errandsContent}
+                            </ReactMarkdown>
+                          </div>
+                        ) : (
+                          <p className="py-10 text-center text-sm text-stone-400">
+                            No errands yet. Tell Blueclaw to add some!
                           </p>
                         )}
                       </div>

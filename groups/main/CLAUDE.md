@@ -283,7 +283,6 @@ ADHD脳の動機づけトリガー（Interest / Novelty / Challenge / Urgency）
    - 朝のセッション（cron: `0 8 * * *`、context_mode: group）
    - 夜のセッション（cron: `0 23 * * *`、context_mode: group）
    - **深夜フラッシュ**（cron: `0 3 * * *`、context_mode: group、下記参照）
-   - **セッションリセット**（cron: `30 3 * * *`、context_mode: isolated、下記参照）
    - **Heartbeat チェック**（interval: `1200000`（20分）、下記参照）
 5. 初回の朝のセッションを開始
 
@@ -336,12 +335,3 @@ fi
 ユーザーにはメッセージを送らない（深夜なので）。全て <internal> タグで囲んで出力すること。
 ```
 
-### セッションコンパクション（3:30 AM）
-
-フラッシュ完了後にセッション履歴を圧縮する。`/compact` をプロンプトとして送ると Claude Code SDK が自動的に古い履歴を要約して圧縮する。これにより翌朝のセッション再開時のトークンコストを抑える。
-
-登録時のパラメータ:
-- `schedule_type`: `cron`
-- `schedule_value`: `30 3 * * *`
-- `context_mode`: `group`
-- `prompt`: `/compact`

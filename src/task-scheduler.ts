@@ -13,6 +13,7 @@ import {
   getDueTasks,
   getTaskById,
   logTaskRun,
+  storeMessageDirect,
   updateTask,
   updateTaskAfterRun,
 } from './db.js';
@@ -189,6 +190,17 @@ async function runTask(
           result = streamedOutput.result;
           // Forward result to user (sendMessage handles formatting)
           await deps.sendMessage(task.chat_jid, streamedOutput.result);
+          // Store bot response in DB so web dashboard can display it
+          storeMessageDirect({
+            id: `bot-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+            chat_jid: task.chat_jid,
+            sender: ASSISTANT_NAME,
+            sender_name: ASSISTANT_NAME,
+            content: streamedOutput.result,
+            timestamp: new Date().toISOString(),
+            is_from_me: false,
+            is_bot_message: true,
+          });
           scheduleClose();
         }
         if (streamedOutput.status === 'success') {

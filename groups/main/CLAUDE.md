@@ -282,6 +282,8 @@ ADHD脳の動機づけトリガー（Interest / Novelty / Challenge / Urgency）
 4. 以下のスケジュールタスクを登録:
    - 朝のセッション（cron: `0 8 * * *`、context_mode: group）
    - 夜のセッション（cron: `0 23 * * *`、context_mode: group）
+   - **深夜フラッシュ**（cron: `0 3 * * *`、context_mode: group、下記参照）
+   - **セッションリセット**（cron: `30 3 * * *`、context_mode: isolated、下記参照）
    - **Heartbeat チェック**（interval: `1200000`（20分）、下記参照）
 5. 初回の朝のセッションを開始
 
@@ -311,3 +313,44 @@ else
 fi
 ```
 - `prompt`: 「ユーザーが直近のメッセージに返信していない。状況に応じて短く声をかける。鬱陶しくならないように。前回何を話していたかを踏まえて、自然なフォローアップをする。」
+
+### 深夜フラッシュ（3:00 AM）
+
+セッションをリセットする前に、会話内で発生した情報を全てファイルに永続化する。
+
+登録時のパラメータ:
+- `schedule_type`: `cron`
+- `schedule_value`: `0 3 * * *`
+- `context_mode`: `group`（セッション履歴にアクセスするため）
+- `prompt`:
+
+```
+[深夜フラッシュ] このセッションはまもなくリセットされる。以下を全て実行せよ:
+
+1. 今日の会話を振り返り、kanban.md に反映されていない変更がないか確認。あれば更新する
+2. errands.md に追加し忘れた雑務がないか確認。あれば追加する
+3. daily/ の今日のファイルに記録漏れがないか確認。あれば追記する
+4. USER.md に反映すべき新しい発見（有効だった手法、回避パターン等）があれば追記する
+5. 明日の朝セッションに引き継ぐべき重要な文脈があれば、daily/ の翌日ファイルに「引き継ぎメモ」として書いておく
+
+ユーザーにはメッセージを送らない（深夜なので）。全て <internal> タグで囲んで出力すること。
+```
+
+### セッションリセット（3:30 AM）
+
+フラッシュ完了後にセッションIDをDBから削除し、翌朝は新しいセッションで起動する。これによりセッション履歴の蓄積によるトークンコストの増大を防ぐ。
+
+登録時のパラメータ:
+- `schedule_type`: `cron`
+- `schedule_value`: `30 3 * * *`
+- `context_mode`: `isolated`
+- `script`:
+```bash
+#!/bin/bash
+DB="/workspace/project/store/messages.db"
+FOLDER="$NANOCLAW_GROUP_FOLDER"
+sqlite3 "$DB" "DELETE FROM sessions WHERE group_folder='$FOLDER'"
+echo '{"wakeAgent": false}'
+```
+
+このタスクは `wakeAgent: false` なのでエージェントを起動しない（スクリプトだけ実行してセッションを消す）。APIコストはゼロ。

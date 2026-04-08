@@ -15,7 +15,16 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'path parameter is required' }, { status: 400 });
     }
 
-    const content = readFile(filePath);
+    // Determine group folder
+    const groupFolder = request.nextUrl.searchParams.get('groupFolder') || undefined;
+
+    // Share tokens can only access their own group
+    if (!auth.isOwnerUser && auth.groupFolder && groupFolder && auth.groupFolder !== groupFolder) {
+      return NextResponse.json({ error: 'Access denied to this group' }, { status: 403 });
+    }
+
+    const effectiveGroupFolder = groupFolder || (auth.groupFolder ?? undefined);
+    const content = readFile(filePath, effectiveGroupFolder);
     const filename = path.basename(filePath);
 
     return NextResponse.json({ content, filename });
@@ -37,12 +46,12 @@ export async function GET(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   try {
     const auth = authenticateRequest(request);
-    if (!auth.isOwnerUser) {
-      return NextResponse.json({ error: 'Owner access required' }, { status: 403 });
+    if (!auth.isOwnerUser && !auth.permissions.includes('edit')) {
+      return NextResponse.json({ error: 'Edit access required' }, { status: 403 });
     }
 
     const body = await request.json();
-    const { path: filePath, content } = body;
+    const { path: filePath, content, groupFolder } = body;
 
     if (!filePath || typeof filePath !== 'string') {
       return NextResponse.json({ error: 'path is required' }, { status: 400 });
@@ -51,7 +60,15 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'content is required' }, { status: 400 });
     }
 
-    writeMarkdownFile(filePath, content);
+    // User tokens can only edit files within their own group
+    if (!auth.isOwnerUser && auth.groupFolder) {
+      const effectiveGroupFolder = groupFolder || auth.groupFolder;
+      if (effectiveGroupFolder !== auth.groupFolder) {
+        return NextResponse.json({ error: 'Access denied to this group' }, { status: 403 });
+      }
+    }
+
+    writeMarkdownFile(filePath, content, groupFolder || undefined);
 
     return NextResponse.json({ success: true, path: filePath });
   } catch (error) {

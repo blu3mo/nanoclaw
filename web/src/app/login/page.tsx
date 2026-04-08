@@ -26,6 +26,7 @@ export default function LoginPage() {
       const data = await res.json();
 
       if (res.ok && data.valid) {
+        // Both owner and user tokens redirect to dashboard
         router.push("/");
       } else {
         setError(data.error || "Invalid token. Please try again.");

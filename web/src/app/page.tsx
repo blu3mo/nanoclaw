@@ -1,12 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import Nav from "@/components/nav";
 import SidebarStats from "@/components/sidebar-stats";
 import MarkdownEditor from "@/components/markdown-editor";
-import type { ScheduledTask } from "@/lib/types";
+import type { ScheduledTask, Group } from "@/lib/types";
 
 function formatDate(date: Date): string {
   return date.toLocaleDateString("en-US", {
@@ -44,6 +44,8 @@ function LoadingSpinner() {
 }
 
 export default function DashboardPage() {
+  const [groups, setGroups] = useState<Group[]>([]);
+  const [selectedGroup, setSelectedGroup] = useState<string>("");
   const [kanbanContent, setKanbanContent] = useState<string>("");
   const [userContent, setUserContent] = useState<string>("");
   const [scheduledTasks, setScheduledTasks] = useState<ScheduledTask[]>([]);
@@ -61,40 +63,91 @@ export default function DashboardPage() {
   const [savingUser, setSavingUser] = useState(false);
   const [savingErrands, setSavingErrands] = useState(false);
 
+  // Build query string helper
+  const gfParam = useCallback(
+    (base: string) => {
+      if (!selectedGroup) return base;
+      const sep = base.includes("?") ? "&" : "?";
+      return `${base}${sep}groupFolder=${encodeURIComponent(selectedGroup)}`;
+    },
+    [selectedGroup]
+  );
+
+  // Fetch groups on mount
   useEffect(() => {
+    async function fetchGroups() {
+      try {
+        const res = await fetch("/api/groups");
+        if (res.ok) {
+          const data: Group[] = await res.json();
+          setGroups(data);
+          // Default to main group
+          const main = data.find((g) => g.is_main === 1);
+          setSelectedGroup(main?.folder || data[0]?.folder || "");
+        }
+      } catch {
+        // Groups endpoint may not be available — continue with default
+      }
+    }
+    fetchGroups();
+  }, []);
+
+  // Fetch dashboard data whenever selectedGroup changes
+  useEffect(() => {
+    if (!selectedGroup && groups.length > 0) return; // wait for group selection
+
     async function fetchData() {
+      setLoading(true);
+      setError(null);
+      // Reset editor states on group switch
+      setEditingKanban(false);
+      setEditingUser(false);
+      setEditingErrands(false);
+      setDailyFiles([]);
+      setSelectedDaily(null);
+
       try {
         const [kanbanRes, errandsRes, userRes, tasksRes, filesRes] = await Promise.allSettled([
-          fetch("/api/files?path=kanban.md"),
-          fetch("/api/files?path=errands.md"),
-          fetch("/api/files?path=USER.md"),
-          fetch("/api/tasks"),
-          fetch("/api/files/list?dir=daily"),
+          fetch(gfParam("/api/files?path=kanban.md")),
+          fetch(gfParam("/api/files?path=errands.md")),
+          fetch(gfParam("/api/files?path=USER.md")),
+          fetch(gfParam("/api/tasks")),
+          fetch(gfParam("/api/files/list?dir=daily")),
         ]);
 
         if (kanbanRes.status === "fulfilled" && kanbanRes.value.ok) {
           const data = await kanbanRes.value.json();
           setKanbanContent(data.content || "");
+        } else {
+          setKanbanContent("");
         }
 
         if (errandsRes.status === "fulfilled" && errandsRes.value.ok) {
           const data = await errandsRes.value.json();
           setErrandsContent(data.content || "");
+        } else {
+          setErrandsContent("");
         }
 
         if (userRes.status === "fulfilled" && userRes.value.ok) {
           const data = await userRes.value.json();
           setUserContent(data.content || "");
+        } else {
+          setUserContent("");
         }
 
         if (tasksRes.status === "fulfilled" && tasksRes.value.ok) {
           const data = await tasksRes.value.json();
           setScheduledTasks(data);
+        } else {
+          setScheduledTasks([]);
         }
 
         if (filesRes.status === "fulfilled" && filesRes.value.ok) {
           const data = await filesRes.value.json();
           setRecentFiles(Array.isArray(data) ? data.slice(0, 10) : []);
+        } else {
+          setRecentFiles([]);
         }
 
         const allFailed =
@@ -113,7 +166,7 @@ export default function DashboardPage() {
     }
 
     fetchData();
-  }, []);
+  }, [selectedGroup, gfParam, groups.length]);
 
   const saveKanban = async (content: string) => {
     setSavingKanban(true);
@@ -121,7 +174,7 @@ export default function DashboardPage() {
       await fetch("/api/files", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ path: "kanban.md", content }),
+        body: JSON.stringify({ path: "kanban.md", content, groupFolder: selectedGroup || undefined }),
       });
       setKanbanContent(content);
       setEditingKanban(false);
@@ -138,7 +191,7 @@ export default function DashboardPage() {
       await fetch("/api/files", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ path: "errands.md", content }),
+        body: JSON.stringify({ path: "errands.md", content, groupFolder: selectedGroup || undefined }),
       });
       setErrandsContent(content);
       setEditingErrands(false);
@@ -155,7 +208,7 @@ export default function DashboardPage() {
       await fetch("/api/files", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ path: "USER.md", content }),
+        body: JSON.stringify({ path: "USER.md", content, groupFolder: selectedGroup || undefined }),
       });
       setUserContent(content);
       setEditingUser(false);
@@ -172,7 +225,7 @@ export default function DashboardPage() {
     if (existing) return;
 
     try {
-      const res = await fetch(`/api/files?path=daily/${filename}`);
+      const res = await fetch(gfParam(`/api/files?path=daily/${filename}`));
       if (res.ok) {
         const data = await res.json();
         setDailyFiles((prev) => [...prev, { name: filename, content: data.content || "" }]);
@@ -195,11 +248,26 @@ export default function DashboardPage() {
 
       <main className="flex-1">
         <div className="mx-auto max-w-7xl px-6 py-6">
-          <div className="mb-6">
-            <h1 className="text-2xl font-bold tracking-tight text-stone-900">
-              Dashboard
-            </h1>
-            <p className="mt-1 text-sm text-stone-500">{formatDate(new Date())}</p>
+          <div className="mb-6 flex items-center justify-between">
+            <div>
+              <h1 className="text-2xl font-bold tracking-tight text-stone-900">
+                Dashboard
+              </h1>
+              <p className="mt-1 text-sm text-stone-500">{formatDate(new Date())}</p>
+            </div>
+            {groups.length > 1 && (
+              <select
+                value={selectedGroup}
+                onChange={(e) => setSelectedGroup(e.target.value)}
+                className="rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm font-medium text-stone-700 shadow-sm transition-all duration-200 hover:border-stone-300 focus:border-indigo-300 focus:outline-none focus:ring-2 focus:ring-indigo-100"
+              >
+                {groups.map((g) => (
+                  <option key={g.folder} value={g.folder}>
+                    {g.name}{g.is_main === 1 ? " (main)" : ""}
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
 
           {loading ? (

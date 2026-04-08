@@ -52,8 +52,10 @@ export default function SharePage() {
   const [error, setError] = useState<string | null>(null);
   const [hasChat, setHasChat] = useState(false);
   const [hasView, setHasView] = useState(false);
+  const [groupFolder, setGroupFolder] = useState<string>("");
   const latestTimestampRef = useRef<string | null>(null);
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const groupFolderRef = useRef<string>("");
 
   useEffect(() => {
     const saved = localStorage.getItem("blueclaw_display_name");
@@ -71,6 +73,7 @@ export default function SharePage() {
   useEffect(() => {
     async function fetchShareData() {
       try {
+        // First fetch kanban to validate the token — the server scopes to the share's group
         const kanbanRes = await fetch("/api/files?path=kanban.md", {
           headers: authHeaders(token),
         });
@@ -88,6 +91,18 @@ export default function SharePage() {
         setHasView(true);
         const kanbanData = await kanbanRes.json();
         setKanbanContent(kanbanData.content || "");
+
+        // Fetch the share token details to get group_folder
+        const shareInfoRes = await fetch(`/api/shares/info?token=${encodeURIComponent(token)}`, {
+          headers: authHeaders(token),
+        });
+        if (shareInfoRes.ok) {
+          const shareInfo = await shareInfoRes.json();
+          if (shareInfo.group_folder) {
+            setGroupFolder(shareInfo.group_folder);
+            groupFolderRef.current = shareInfo.group_folder;
+          }
+        }
 
         const messagesRes = await fetch("/api/messages?limit=50", {
           headers: authHeaders(token),
@@ -173,7 +188,12 @@ export default function SharePage() {
       const res = await fetch("/api/messages", {
         method: "POST",
         headers: { "Content-Type": "application/json", ...authHeaders(token) },
-        body: JSON.stringify({ content, senderName: displayName, isFromMe: false }),
+        body: JSON.stringify({
+          content,
+          senderName: displayName,
+          isFromMe: false,
+          groupFolder: groupFolder || undefined,
+        }),
       });
       if (res.ok) {
         const saved: Message = await res.json();

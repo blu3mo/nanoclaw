@@ -10,11 +10,19 @@ export async function GET(request: NextRequest) {
     }
 
     const dir = request.nextUrl.searchParams.get('dir');
+    const groupFolder = request.nextUrl.searchParams.get('groupFolder') || undefined;
+
+    // Share tokens can only access their own group
+    if (!auth.isOwnerUser && auth.groupFolder && groupFolder && auth.groupFolder !== groupFolder) {
+      return NextResponse.json({ error: 'Access denied to this group' }, { status: 403 });
+    }
+
+    const effectiveGroupFolder = groupFolder || (auth.groupFolder ?? undefined);
 
     if (dir === 'daily') {
-      return NextResponse.json(listDailyFiles());
+      return NextResponse.json(listDailyFiles(effectiveGroupFolder));
     } else if (dir === 'weekly') {
-      return NextResponse.json(listWeeklyFiles());
+      return NextResponse.json(listWeeklyFiles(effectiveGroupFolder));
     } else {
       return NextResponse.json(
         { error: "dir parameter must be 'daily' or 'weekly'" },

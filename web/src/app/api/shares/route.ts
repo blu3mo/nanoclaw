@@ -44,12 +44,18 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    const { groupFolder } = body;
+    if (!groupFolder || typeof groupFolder !== 'string') {
+      return NextResponse.json({ error: 'groupFolder is required' }, { status: 400 });
+    }
+
     const token = uuidv4();
     const shareToken = createShareToken(
       token,
       label,
       permList.join(','),
-      expiresAt || null
+      expiresAt || null,
+      groupFolder
     );
 
     return NextResponse.json(shareToken, { status: 201 });

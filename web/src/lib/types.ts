@@ -23,9 +23,17 @@ export interface ShareToken {
   token: string;
   label: string;
   permissions: string;
+  group_folder: string;
   created_at: string;
   expires_at: string | null;
   active: number;
+}
+
+export interface Group {
+  jid: string;
+  name: string;
+  folder: string;
+  is_main: number;
 }
 
 export interface KanbanSection {

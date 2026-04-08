@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import Nav from "@/components/nav";
 import ChatView from "@/components/chat-view";
-import type { Message } from "@/lib/types";
+import type { Message, Group } from "@/lib/types";
 
 function LoadingSpinner() {
   return (
@@ -32,12 +32,48 @@ function LoadingSpinner() {
 }
 
 export default function ChatPage() {
+  const [groups, setGroups] = useState<Group[]>([]);
+  const [selectedGroup, setSelectedGroup] = useState<string>("");
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const latestTimestampRef = useRef<string | null>(null);
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const selectedGroupRef = useRef<string>("");
+
+  // Keep ref in sync for polling callback
+  useEffect(() => {
+    selectedGroupRef.current = selectedGroup;
+  }, [selectedGroup]);
+
+  // Build query string helper
+  const gfParam = useCallback(
+    (base: string) => {
+      if (!selectedGroup) return base;
+      const sep = base.includes("?") ? "&" : "?";
+      return `${base}${sep}groupFolder=${encodeURIComponent(selectedGroup)}`;
+    },
+    [selectedGroup]
+  );
+
+  // Fetch groups on mount
+  useEffect(() => {
+    async function fetchGroups() {
+      try {
+        const res = await fetch("/api/groups");
+        if (res.ok) {
+          const data: Group[] = await res.json();
+          setGroups(data);
+          const main = data.find((g) => g.is_main === 1);
+          setSelectedGroup(main?.folder || data[0]?.folder || "");
+        }
+      } catch {
+        // Groups endpoint may not be available
+      }
+    }
+    fetchGroups();
+  }, []);
 
   // Track the latest message timestamp
   useEffect(() => {
@@ -50,11 +86,18 @@ export default function ChatPage() {
     }
   }, [messages]);
 
-  // Fetch initial messages
+  // Fetch initial messages when group changes
   useEffect(() => {
+    if (!selectedGroup && groups.length > 0) return;
+
     async function fetchMessages() {
+      setLoading(true);
+      setError(null);
+      setMessages([]);
+      latestTimestampRef.current = null;
+
       try {
-        const res = await fetch("/api/messages?limit=50");
+        const res = await fetch(gfParam("/api/messages?limit=50"));
         if (!res.ok) {
           if (res.status === 401) {
             setError("Unauthorized. Please sign in.");
@@ -75,15 +118,16 @@ export default function ChatPage() {
     }
 
     fetchMessages();
-  }, []);
+  }, [selectedGroup, gfParam, groups.length]);
 
   // Poll for new messages every 3 seconds
   const pollNewMessages = useCallback(async () => {
     if (!latestTimestampRef.current) return;
+    const gf = selectedGroupRef.current;
+    const baseUrl = `/api/messages?since=${encodeURIComponent(latestTimestampRef.current)}`;
+    const url = gf ? `${baseUrl}&groupFolder=${encodeURIComponent(gf)}` : baseUrl;
     try {
-      const res = await fetch(
-        `/api/messages?since=${encodeURIComponent(latestTimestampRef.current)}`
-      );
+      const res = await fetch(url);
       if (!res.ok) return;
       const newMessages: Message[] = await res.json();
       if (newMessages.length > 0) {
@@ -132,7 +176,7 @@ export default function ChatPage() {
       const res = await fetch("/api/messages", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content }),
+        body: JSON.stringify({ content, groupFolder: selectedGroup || undefined }),
       });
 
       if (res.ok) {
@@ -152,6 +196,21 @@ export default function ChatPage() {
   return (
     <div className="flex h-screen flex-col bg-[#fafaf9]">
       <Nav />
+      {groups.length > 1 && (
+        <div className="border-b border-stone-100 bg-white px-6 py-2">
+          <select
+            value={selectedGroup}
+            onChange={(e) => setSelectedGroup(e.target.value)}
+            className="rounded-lg border border-stone-200 bg-white px-3 py-1.5 text-sm font-medium text-stone-700 shadow-sm transition-all duration-200 hover:border-stone-300 focus:border-indigo-300 focus:outline-none focus:ring-2 focus:ring-indigo-100"
+          >
+            {groups.map((g) => (
+              <option key={g.folder} value={g.folder}>
+                {g.name}{g.is_main === 1 ? " (main)" : ""}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
       {loading ? (
         <LoadingSpinner />
       ) : error ? (

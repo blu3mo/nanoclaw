@@ -2,7 +2,10 @@ import fs from 'fs';
 import path from 'path';
 import matter from 'gray-matter';
 
-export function getGroupPath(): string {
+export function getGroupPath(groupFolder?: string): string {
+  if (groupFolder) {
+    return path.resolve(process.cwd(), '..', 'groups', groupFolder);
+  }
   const groupPath = process.env.NANOCLAW_GROUP_PATH || path.resolve(process.cwd(), '..', 'groups/discord_main');
   return path.resolve(groupPath);
 }
@@ -12,15 +15,15 @@ export interface MarkdownFile {
   metadata: Record<string, unknown>;
 }
 
-export function readMarkdownFile(filename: string): MarkdownFile {
-  const filePath = path.join(getGroupPath(), filename);
+export function readMarkdownFile(filename: string, groupFolder?: string): MarkdownFile {
+  const filePath = path.join(getGroupPath(groupFolder), filename);
   const raw = fs.readFileSync(filePath, 'utf-8');
   const { data, content } = matter(raw);
   return { content, metadata: data };
 }
 
-export function writeMarkdownFile(filename: string, content: string): void {
-  const filePath = path.join(getGroupPath(), filename);
+export function writeMarkdownFile(filename: string, content: string, groupFolder?: string): void {
+  const filePath = path.join(getGroupPath(groupFolder), filename);
   const dir = path.dirname(filePath);
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
@@ -28,8 +31,8 @@ export function writeMarkdownFile(filename: string, content: string): void {
   fs.writeFileSync(filePath, content, 'utf-8');
 }
 
-export function listDailyFiles(): string[] {
-  const dailyDir = path.join(getGroupPath(), 'daily');
+export function listDailyFiles(groupFolder?: string): string[] {
+  const dailyDir = path.join(getGroupPath(groupFolder), 'daily');
   if (!fs.existsSync(dailyDir)) return [];
 
   return fs.readdirSync(dailyDir)
@@ -38,8 +41,8 @@ export function listDailyFiles(): string[] {
     .reverse();
 }
 
-export function listWeeklyFiles(): string[] {
-  const weeklyDir = path.join(getGroupPath(), 'weekly');
+export function listWeeklyFiles(groupFolder?: string): string[] {
+  const weeklyDir = path.join(getGroupPath(groupFolder), 'weekly');
   if (!fs.existsSync(weeklyDir)) return [];
 
   return fs.readdirSync(weeklyDir)
@@ -48,9 +51,9 @@ export function listWeeklyFiles(): string[] {
     .reverse();
 }
 
-export function readFile(relativePath: string): string {
+export function readFile(relativePath: string, groupFolder?: string): string {
   // Path traversal protection
-  const groupPath = getGroupPath();
+  const groupPath = getGroupPath(groupFolder);
   const resolved = path.resolve(groupPath, relativePath);
 
   if (!resolved.startsWith(groupPath)) {

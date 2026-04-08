@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import Nav from "@/components/nav";
 import ShareList from "@/components/share-list";
 import CreateShareDialog from "@/components/create-share-dialog";
-import type { ShareToken } from "@/lib/types";
+import type { ShareToken, Group } from "@/lib/types";
 
 function LoadingSpinner() {
   return (
@@ -34,40 +34,52 @@ function LoadingSpinner() {
 
 export default function SharesPage() {
   const [shares, setShares] = useState<ShareToken[]>([]);
+  const [groups, setGroups] = useState<Group[]>([]);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Fetch shares on mount
+  // Fetch shares and groups on mount
   useEffect(() => {
-    async function fetchShares() {
+    async function fetchData() {
       try {
-        const res = await fetch("/api/shares");
-        if (!res.ok) {
-          if (res.status === 401 || res.status === 403) {
-            setError("Unauthorized. Please sign in.");
-          } else {
-            setError("Failed to load shares.");
-          }
-          return;
+        const [sharesRes, groupsRes] = await Promise.allSettled([
+          fetch("/api/shares"),
+          fetch("/api/groups"),
+        ]);
+
+        if (sharesRes.status === "fulfilled" && sharesRes.value.ok) {
+          const data: ShareToken[] = await sharesRes.value.json();
+          setShares(data);
+        } else if (
+          sharesRes.status === "fulfilled" &&
+          (sharesRes.value.status === 401 || sharesRes.value.status === 403)
+        ) {
+          setError("Unauthorized. Please sign in.");
+        } else {
+          setError("Failed to load shares.");
         }
-        const data: ShareToken[] = await res.json();
-        setShares(data);
+
+        if (groupsRes.status === "fulfilled" && groupsRes.value.ok) {
+          const data: Group[] = await groupsRes.value.json();
+          setGroups(data);
+        }
       } catch (err) {
-        console.error("Failed to fetch shares:", err);
+        console.error("Failed to fetch data:", err);
         setError("Failed to load shares.");
       } finally {
         setLoading(false);
       }
     }
 
-    fetchShares();
+    fetchData();
   }, []);
 
   const handleCreate = async (data: {
     label: string;
     permissions: string[];
     expiresAt: string | null;
+    groupFolder: string;
   }) => {
     try {
       const res = await fetch("/api/shares", {
@@ -76,6 +88,7 @@ export default function SharesPage() {
         body: JSON.stringify({
           label: data.label,
           permissions: data.permissions.join(","),
+          groupFolder: data.groupFolder,
           expiresAt: data.expiresAt
             ? new Date(data.expiresAt).toISOString()
             : null,
@@ -156,7 +169,7 @@ export default function SharesPage() {
               <p className="text-sm text-red-600">{error}</p>
             </div>
           ) : (
-            <ShareList shares={shares} onDeactivate={handleDeactivate} />
+            <ShareList shares={shares} onDeactivate={handleDeactivate} groups={groups} />
           )}
         </div>
       </main>
@@ -166,6 +179,7 @@ export default function SharesPage() {
         isOpen={dialogOpen}
         onClose={() => setDialogOpen(false)}
         onCreate={handleCreate}
+        groups={groups}
       />
     </div>
   );

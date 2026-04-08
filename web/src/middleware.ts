@@ -19,11 +19,18 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // Check for owner cookie
+  // Check for auth cookie (owner token or user token)
   const cookie = request.cookies.get("blueclaw-token")?.value;
   const ownerToken = process.env.BLUECLAW_OWNER_TOKEN || "";
 
   if (cookie && cookie === ownerToken) {
+    // Owner token — full access
+    return NextResponse.next();
+  }
+
+  if (cookie) {
+    // Cookie exists but is not the owner token — it might be a user token.
+    // Let the request through; API routes will validate via authenticateRequest.
     return NextResponse.next();
   }
 

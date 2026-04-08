@@ -1,14 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import type { ShareToken } from "@/lib/types";
+import type { ShareToken, Group } from "@/lib/types";
 
 interface ShareListProps {
   shares: ShareToken[];
   onDeactivate: (token: string) => void;
+  groups?: Group[];
 }
 
-export default function ShareList({ shares, onDeactivate }: ShareListProps) {
+export default function ShareList({ shares, onDeactivate, groups = [] }: ShareListProps) {
   const [copiedToken, setCopiedToken] = useState<string | null>(null);
 
   const copyUrl = async (token: string) => {
@@ -128,6 +129,11 @@ export default function ShareList({ shares, onDeactivate }: ShareListProps) {
                 </div>
 
                 <div className="mt-2 flex items-center gap-3 text-[10px] text-stone-400">
+                  {share.group_folder && (
+                    <span className="rounded-md bg-stone-100 px-1.5 py-0.5 font-medium text-stone-500">
+                      {groups.find((g) => g.folder === share.group_folder)?.name || share.group_folder}
+                    </span>
+                  )}
                   <span>Created {formatDate(share.created_at)}</span>
                   {share.expires_at && (
                     <span>

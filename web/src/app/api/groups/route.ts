@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { isOwner } from '@/lib/auth';
-import { getScheduledTasks } from '@/lib/db';
+import { getAllGroups } from '@/lib/db';
 
 export async function GET(request: NextRequest) {
   try {
@@ -8,16 +8,10 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Owner access required' }, { status: 403 });
     }
 
-    const groupFolder = request.nextUrl.searchParams.get('groupFolder');
-    let tasks = getScheduledTasks();
-
-    if (groupFolder) {
-      tasks = tasks.filter((t) => t.group_folder === groupFolder);
-    }
-
-    return NextResponse.json(tasks);
+    const groups = getAllGroups();
+    return NextResponse.json(groups);
   } catch (error) {
-    console.error('[API] GET /api/tasks error:', error);
+    console.error('[API] GET /api/groups error:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

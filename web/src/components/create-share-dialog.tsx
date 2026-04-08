@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import type { Group } from "@/lib/types";
 
 interface CreateShareDialogProps {
   isOpen: boolean;
@@ -9,7 +10,9 @@ interface CreateShareDialogProps {
     label: string;
     permissions: string[];
     expiresAt: string | null;
+    groupFolder: string;
   }) => void;
+  groups?: Group[];
 }
 
 const PERMISSION_OPTIONS = [
@@ -34,11 +37,14 @@ export default function CreateShareDialog({
   isOpen,
   onClose,
   onCreate,
+  groups = [],
 }: CreateShareDialogProps) {
   const [label, setLabel] = useState("");
   const [permissions, setPermissions] = useState<string[]>(["view"]);
   const [hasExpiry, setHasExpiry] = useState(false);
   const [expiresAt, setExpiresAt] = useState("");
+  const mainGroup = groups.find((g) => g.is_main === 1);
+  const [groupFolder, setGroupFolder] = useState(mainGroup?.folder || groups[0]?.folder || "discord_main");
 
   const togglePermission = (perm: string) => {
     setPermissions((prev) =>
@@ -55,6 +61,7 @@ export default function CreateShareDialog({
       label: label.trim(),
       permissions,
       expiresAt: hasExpiry && expiresAt ? expiresAt : null,
+      groupFolder,
     });
     setLabel("");
     setPermissions(["view"]);
@@ -114,6 +121,26 @@ export default function CreateShareDialog({
               required
             />
           </div>
+
+          {/* Group */}
+          {groups.length > 1 && (
+            <div>
+              <label className="block text-xs font-semibold text-stone-600">
+                Group
+              </label>
+              <select
+                value={groupFolder}
+                onChange={(e) => setGroupFolder(e.target.value)}
+                className="mt-1.5 w-full rounded-lg border border-stone-200 bg-stone-50 px-3 py-2.5 text-sm text-stone-800 focus:border-indigo-300 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-100 transition-all duration-200"
+              >
+                {groups.map((g) => (
+                  <option key={g.folder} value={g.folder}>
+                    {g.name}{g.is_main === 1 ? " (main)" : ""}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           {/* Permissions */}
           <div>

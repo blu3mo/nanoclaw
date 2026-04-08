@@ -57,9 +57,21 @@ export default function ChatPage() {
     [selectedGroup]
   );
 
-  // Fetch groups on mount
+  // Fetch session info and groups on mount
   useEffect(() => {
-    async function fetchGroups() {
+    async function init() {
+      try {
+        const meRes = await fetch("/api/auth/me");
+        if (meRes.ok) {
+          const me = await meRes.json();
+          if (me.role === "user" && me.groupFolder) {
+            setSelectedGroup(me.groupFolder);
+            setGroups([{ jid: "", name: me.groupFolder, folder: me.groupFolder, is_main: 0 }]);
+            return;
+          }
+        }
+      } catch { /* continue */ }
+
       try {
         const res = await fetch("/api/groups");
         if (res.ok) {
@@ -68,11 +80,9 @@ export default function ChatPage() {
           const main = data.find((g) => g.is_main === 1);
           setSelectedGroup(main?.folder || data[0]?.folder || "");
         }
-      } catch {
-        // Groups endpoint may not be available
-      }
+      } catch { /* no groups */ }
     }
-    fetchGroups();
+    init();
   }, []);
 
   // Track the latest message timestamp

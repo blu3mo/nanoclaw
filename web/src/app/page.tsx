@@ -73,23 +73,35 @@ export default function DashboardPage() {
     [selectedGroup]
   );
 
-  // Fetch groups on mount
+  // Fetch session info and groups on mount
   useEffect(() => {
-    async function fetchGroups() {
+    async function init() {
+      // First check session to get role and groupFolder
+      try {
+        const meRes = await fetch("/api/auth/me");
+        if (meRes.ok) {
+          const me = await meRes.json();
+          if (me.role === "user" && me.groupFolder) {
+            // User token — locked to their group, no selector needed
+            setSelectedGroup(me.groupFolder);
+            setGroups([{ jid: "", name: me.groupFolder, folder: me.groupFolder, is_main: 0 }]);
+            return;
+          }
+        }
+      } catch { /* continue to groups fetch */ }
+
+      // Owner — fetch all groups
       try {
         const res = await fetch("/api/groups");
         if (res.ok) {
           const data: Group[] = await res.json();
           setGroups(data);
-          // Default to main group
           const main = data.find((g) => g.is_main === 1);
           setSelectedGroup(main?.folder || data[0]?.folder || "");
         }
-      } catch {
-        // Groups endpoint may not be available — continue with default
-      }
+      } catch { /* no groups available */ }
     }
-    fetchGroups();
+    init();
   }, []);
 
   // Fetch dashboard data whenever selectedGroup changes

@@ -1,17 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { isOwner } from '@/lib/auth';
+import { authenticateRequest } from '@/lib/auth';
 import { getScheduledTasks } from '@/lib/db';
 
 export async function GET(request: NextRequest) {
   try {
-    if (!isOwner(request)) {
-      return NextResponse.json({ error: 'Owner access required' }, { status: 403 });
+    const auth = authenticateRequest(request);
+    if (!auth.isOwnerUser && !auth.isUser) {
+      return NextResponse.json({ error: 'Access required' }, { status: 403 });
     }
 
     const groupFolder = request.nextUrl.searchParams.get('groupFolder');
     let tasks = getScheduledTasks();
 
-    if (groupFolder) {
+    // Users can only see their own group's tasks
+    if (auth.isUser && auth.groupFolder) {
+      tasks = tasks.filter((t) => t.group_folder === auth.groupFolder);
+    } else if (groupFolder) {
       tasks = tasks.filter((t) => t.group_folder === groupFolder);
     }
 

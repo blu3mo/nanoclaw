@@ -288,30 +288,46 @@ ADHD脳の動機づけトリガー（Interest / Novelty / Challenge / Urgency）
 
 ### Heartbeat タスク
 
-20分ごとに「ユーザーが直近の Blueclaw メッセージに返信しているか」を軽量チェックし、未返信なら nudge を送る。API コスト削減のため `script` で事前判定する。
+10分ごとにチェック。最後のメッセージが誰かによって待ち時間を変える:
+- 最後がユーザー → 20分経過で声かけ（初回）
+- 最後が bot（無視されている）→ 3時間経過で再度声かけ
+- 深夜（23:00-8:00）はスキップ
 
 登録時のパラメータ:
 - `schedule_type`: `interval`
-- `schedule_value`: `1200000`
+- `schedule_value`: `600000`
 - `context_mode`: `group`
 - `script`:
 ```bash
 #!/bin/bash
 DB="/workspace/project/store/messages.db"
 CHAT_JID="$NANOCLAW_CHAT_JID"
-LAST_BOT=$(sqlite3 "$DB" "SELECT MAX(timestamp) FROM messages WHERE chat_jid='$CHAT_JID' AND is_bot_message=1")
-if [ -z "$LAST_BOT" ]; then
+HOUR=$(date +%H)
+if [ "$HOUR" -ge 23 ] || [ "$HOUR" -lt 8 ]; then
   echo '{"wakeAgent": false}'
   exit 0
 fi
-USER_REPLY=$(sqlite3 "$DB" "SELECT COUNT(*) FROM messages WHERE chat_jid='$CHAT_JID' AND timestamp>'$LAST_BOT' AND is_bot_message=0 AND content != ''")
-if [ "$USER_REPLY" -gt 0 ]; then
+LAST_TS=$(sqlite3 "$DB" "SELECT MAX(timestamp) FROM messages WHERE chat_jid='$CHAT_JID' AND content != ''")
+if [ -z "$LAST_TS" ]; then
   echo '{"wakeAgent": false}'
+  exit 0
+fi
+LAST_IS_BOT=$(sqlite3 "$DB" "SELECT is_bot_message FROM messages WHERE chat_jid='$CHAT_JID' AND content != '' ORDER BY timestamp DESC LIMIT 1")
+LAST_EPOCH=$(date -d "$LAST_TS" +%s 2>/dev/null || date -j -f "%Y-%m-%dT%H:%M:%S" "${LAST_TS%%.*}" +%s 2>/dev/null || echo 0)
+NOW_EPOCH=$(date +%s)
+DIFF=$(( NOW_EPOCH - LAST_EPOCH ))
+if [ "$LAST_IS_BOT" = "1" ]; then
+  THRESHOLD=10800
 else
-  echo '{"wakeAgent": true, "data": {"reason": "no_reply_since_last_checkin", "last_bot_ts": "'"$LAST_BOT"'"}}'
+  THRESHOLD=1200
+fi
+if [ "$DIFF" -ge "$THRESHOLD" ]; then
+  echo '{"wakeAgent": true, "data": {"reason": "inactivity", "last_was_bot": '$LAST_IS_BOT', "minutes_silent": '$((DIFF / 60))'}}'
+else
+  echo '{"wakeAgent": false}'
 fi
 ```
-- `prompt`: 「ユーザーが直近のメッセージに返信していない。状況に応じて短く声をかける。鬱陶しくならないように。前回何を話していたかを踏まえて、自然なフォローアップをする。」
+- `prompt`: 「ユーザーが直近のメッセージに返信していない。kanban.md、errands.md、daily/ を読んで状況を把握し、状況に応じて短く声をかける。必要なら具体的に1つやることを提案する。鬱陶しくならないように。」
 
 ### 深夜フラッシュ（3:00 AM）
 

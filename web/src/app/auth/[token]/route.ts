@@ -12,12 +12,17 @@ export async function GET(
   const isOwner = token === OWNER_TOKEN;
   const userToken = !isOwner ? getUserToken(token) : null;
 
+  // Build base URL from request headers (standalone mode uses localhost internally)
+  const host = request.headers.get('host') || 'localhost:3000';
+  const proto = request.headers.get('x-forwarded-proto') || 'http';
+  const baseUrl = `${proto}://${host}`;
+
   if (!isOwner && !userToken) {
-    return NextResponse.redirect(new URL('/login?error=invalid', request.url));
+    return NextResponse.redirect(new URL('/login?error=invalid', baseUrl));
   }
 
   // Set cookie and redirect to dashboard
-  const response = NextResponse.redirect(new URL('/', request.url));
+  const response = NextResponse.redirect(new URL('/', baseUrl));
   response.cookies.set('blueclaw-token', token, {
     httpOnly: true,
     secure: false,

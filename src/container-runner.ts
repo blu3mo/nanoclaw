@@ -148,6 +148,9 @@ function buildVolumeMounts(
             // Enable Claude's memory feature (persists user preferences between sessions)
             // https://code.claude.com/docs/en/memory#manage-auto-memory
             CLAUDE_CODE_DISABLE_AUTO_MEMORY: '0',
+            // Auto-compact when context exceeds this token count (default 165000).
+            // Lower = more frequent compaction = lower cost per session.
+            CLAUDE_CODE_AUTO_COMPACT_WINDOW: '40000',
           },
         },
         null,
@@ -176,16 +179,27 @@ function buildVolumeMounts(
   // Per-group IPC namespace: each group gets its own IPC directory
   // This prevents cross-group privilege escalation via IPC
   const groupIpcDir = resolveGroupIpcPath(group.folder);
-  fs.mkdirSync(path.join(groupIpcDir, 'messages'), { recursive: true, mode: 0o777 });
-  fs.mkdirSync(path.join(groupIpcDir, 'tasks'), { recursive: true, mode: 0o777 });
-  fs.mkdirSync(path.join(groupIpcDir, 'input'), { recursive: true, mode: 0o777 });
+  fs.mkdirSync(path.join(groupIpcDir, 'messages'), {
+    recursive: true,
+    mode: 0o777,
+  });
+  fs.mkdirSync(path.join(groupIpcDir, 'tasks'), {
+    recursive: true,
+    mode: 0o777,
+  });
+  fs.mkdirSync(path.join(groupIpcDir, 'input'), {
+    recursive: true,
+    mode: 0o777,
+  });
   // Ensure container's node user (uid 1000) can write to IPC dirs
   try {
     fs.chmodSync(groupIpcDir, 0o777);
     fs.chmodSync(path.join(groupIpcDir, 'messages'), 0o777);
     fs.chmodSync(path.join(groupIpcDir, 'tasks'), 0o777);
     fs.chmodSync(path.join(groupIpcDir, 'input'), 0o777);
-  } catch { /* best effort */ }
+  } catch {
+    /* best effort */
+  }
   mounts.push({
     hostPath: groupIpcDir,
     containerPath: '/workspace/ipc',

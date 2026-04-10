@@ -150,7 +150,7 @@ function buildVolumeMounts(
             CLAUDE_CODE_DISABLE_AUTO_MEMORY: '0',
             // Auto-compact when context exceeds this token count (default 165000).
             // Lower = more frequent compaction = lower cost per session.
-            CLAUDE_CODE_AUTO_COMPACT_WINDOW: '40000',
+            CLAUDE_CODE_AUTO_COMPACT_WINDOW: '25000',
           },
         },
         null,

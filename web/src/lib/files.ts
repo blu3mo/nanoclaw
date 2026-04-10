@@ -3,11 +3,14 @@ import path from 'path';
 import matter from 'gray-matter';
 
 export function getGroupPath(groupFolder?: string): string {
+  // Base groups directory: use NANOCLAW_GROUPS_DIR if set, otherwise derive from NANOCLAW_GROUP_PATH
+  const defaultGroupPath = process.env.NANOCLAW_GROUP_PATH || '/root/nanoclaw/groups/discord_main';
+  const groupsBaseDir = process.env.NANOCLAW_GROUPS_DIR || path.dirname(path.resolve(defaultGroupPath));
+
   if (groupFolder) {
-    return path.resolve(process.cwd(), '..', 'groups', groupFolder);
+    return path.resolve(groupsBaseDir, groupFolder);
   }
-  const groupPath = process.env.NANOCLAW_GROUP_PATH || path.resolve(process.cwd(), '..', 'groups/discord_main');
-  return path.resolve(groupPath);
+  return path.resolve(defaultGroupPath);
 }
 
 export interface MarkdownFile {

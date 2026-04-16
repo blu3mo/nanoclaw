@@ -243,28 +243,40 @@ export async function processTaskIpc(
           }
           nextRun = new Date(Date.now() + ms).toISOString();
         } else if (scheduleType === 'once') {
-          // Interpret the timestamp in the user's timezone.
-          // Append the timezone offset so Date parses it correctly.
+          // Interpret the timestamp string as a time in the user's timezone.
+          // Strategy: pretend the local time is UTC, then use Intl.DateTimeFormat
+          // to find the offset between UTC and the target timezone, and shift.
           let date: Date;
           try {
-            // Create a date string that respects the user's timezone
-            // by using Intl to find the offset, then constructing the ISO string
-            const localStr = data.schedule_value;
-            const formatter = new Intl.DateTimeFormat('en-US', {
+            const m = data.schedule_value.match(
+              /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/,
+            );
+            if (!m) throw new Error('Invalid format');
+            const [, yr, mo, dy, hr, mi, se] = m;
+
+            // Create a UTC instant with the same numeric values as the local time
+            const utcGuess = Date.UTC(+yr, +mo - 1, +dy, +hr, +mi, +(se || 0));
+
+            // Format that UTC instant in the target timezone to see what time it is there
+            const fmt = new Intl.DateTimeFormat('en-US', {
               timeZone: taskTz,
               year: 'numeric', month: '2-digit', day: '2-digit',
               hour: '2-digit', minute: '2-digit', second: '2-digit',
               hour12: false,
             });
-            // Find the UTC offset for the given timezone at the given time
-            const refDate = new Date(localStr); // rough parse
-            const utcStr = refDate.toLocaleString('en-US', { timeZone: 'UTC' });
-            const tzStr = refDate.toLocaleString('en-US', { timeZone: taskTz });
-            const utcDate = new Date(utcStr);
-            const tzDate = new Date(tzStr);
-            const offsetMs = tzDate.getTime() - utcDate.getTime();
-            // The user's local time minus the offset gives UTC
-            date = new Date(refDate.getTime() - offsetMs);
+            const parts = fmt.formatToParts(new Date(utcGuess));
+            const get = (type: string) =>
+              parts.find((p) => p.type === type)?.value || '0';
+
+            // Calculate hour offset (including day boundary)
+            const tzHr = +get('hour');
+            const tzDy = +get('day');
+            let diffHours = tzHr - +hr;
+            if (tzDy > +dy) diffHours += 24;
+            if (tzDy < +dy) diffHours -= 24;
+
+            // Actual UTC = utcGuess shifted back by the offset
+            date = new Date(utcGuess - diffHours * 3600000);
           } catch {
             date = new Date(data.schedule_value);
           }

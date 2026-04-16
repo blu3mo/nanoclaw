@@ -162,6 +162,7 @@ export async function processTaskIpc(
     schedule_type?: string;
     schedule_value?: string;
     context_mode?: string;
+    timezone?: string;
     script?: string;
     groupFolder?: string;
     chatJid?: string;
@@ -213,11 +214,15 @@ export async function processTaskIpc(
 
         const scheduleType = data.schedule_type as 'cron' | 'interval' | 'once';
 
+        // Use the task's timezone for cron/once interpretation.
+        // Falls back to server TIMEZONE if not provided.
+        const taskTz = data.timezone || TIMEZONE;
+
         let nextRun: string | null = null;
         if (scheduleType === 'cron') {
           try {
             const interval = CronExpressionParser.parse(data.schedule_value, {
-              tz: TIMEZONE,
+              tz: taskTz,
             });
             nextRun = interval.next().toISOString();
           } catch {
@@ -238,7 +243,31 @@ export async function processTaskIpc(
           }
           nextRun = new Date(Date.now() + ms).toISOString();
         } else if (scheduleType === 'once') {
-          const date = new Date(data.schedule_value);
+          // Interpret the timestamp in the user's timezone.
+          // Append the timezone offset so Date parses it correctly.
+          let date: Date;
+          try {
+            // Create a date string that respects the user's timezone
+            // by using Intl to find the offset, then constructing the ISO string
+            const localStr = data.schedule_value;
+            const formatter = new Intl.DateTimeFormat('en-US', {
+              timeZone: taskTz,
+              year: 'numeric', month: '2-digit', day: '2-digit',
+              hour: '2-digit', minute: '2-digit', second: '2-digit',
+              hour12: false,
+            });
+            // Find the UTC offset for the given timezone at the given time
+            const refDate = new Date(localStr); // rough parse
+            const utcStr = refDate.toLocaleString('en-US', { timeZone: 'UTC' });
+            const tzStr = refDate.toLocaleString('en-US', { timeZone: taskTz });
+            const utcDate = new Date(utcStr);
+            const tzDate = new Date(tzStr);
+            const offsetMs = tzDate.getTime() - utcDate.getTime();
+            // The user's local time minus the offset gives UTC
+            date = new Date(refDate.getTime() - offsetMs);
+          } catch {
+            date = new Date(data.schedule_value);
+          }
           if (isNaN(date.getTime())) {
             logger.warn(
               { scheduleValue: data.schedule_value },
@@ -264,6 +293,7 @@ export async function processTaskIpc(
           script: data.script || null,
           schedule_type: scheduleType,
           schedule_value: data.schedule_value,
+          timezone: data.timezone || null,
           context_mode: contextMode,
           next_run: nextRun,
           status: 'active',

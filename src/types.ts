@@ -65,6 +65,7 @@ export interface ScheduledTask {
   script?: string | null;
   schedule_type: 'cron' | 'interval' | 'once';
   schedule_value: string;
+  timezone?: string | null;
   context_mode: 'group' | 'isolated';
   next_run: string | null;
   last_run: string | null;

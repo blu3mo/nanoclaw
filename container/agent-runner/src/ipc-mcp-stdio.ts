@@ -86,10 +86,12 @@ MESSAGING BEHAVIOR - The task agent's output is sent to the user or group. It ca
 \u2022 Only send a message when there's something to report (e.g., "notify me if...")
 \u2022 Never send a message (background maintenance tasks)
 
-SCHEDULE VALUE FORMAT (all times are LOCAL timezone):
-\u2022 cron: Standard cron expression (e.g., "*/5 * * * *" for every 5 minutes, "0 9 * * *" for daily at 9am LOCAL time)
+TIMEZONE - Always pass the user's IANA timezone (e.g., "Asia/Tokyo", "America/New_York"). Check USER.md for the user's timezone. The system handles all timezone conversion — you do NOT need to convert times yourself. Just pass the user's local time and their timezone.
+
+SCHEDULE VALUE FORMAT (all times in the user's local timezone):
+\u2022 cron: Standard cron expression in user's local time (e.g., "0 8 * * *" for daily at 8am in the user's timezone)
 \u2022 interval: Milliseconds between runs (e.g., "300000" for 5 minutes, "3600000" for 1 hour)
-\u2022 once: Local time WITHOUT "Z" suffix (e.g., "2026-02-01T15:30:00"). Do NOT use UTC/Z suffix.`,
+\u2022 once: User's local time WITHOUT "Z" suffix (e.g., "2026-02-01T15:30:00"). Do NOT use UTC/Z suffix. Do NOT convert to server time.`,
   {
     prompt: z
       .string()
@@ -105,6 +107,11 @@ SCHEDULE VALUE FORMAT (all times are LOCAL timezone):
       .string()
       .describe(
         'cron: "*/5 * * * *" | interval: milliseconds like "300000" | once: local timestamp like "2026-02-01T15:30:00" (no Z suffix!)',
+      ),
+    timezone: z
+      .string()
+      .describe(
+        'IANA timezone of the user (e.g., "Asia/Tokyo", "America/New_York"). REQUIRED. Check USER.md for the user\'s timezone. The system converts all times using this — never convert times yourself.',
       ),
     context_mode: z
       .enum(['group', 'isolated'])
@@ -196,6 +203,7 @@ SCHEDULE VALUE FORMAT (all times are LOCAL timezone):
       script: args.script || undefined,
       schedule_type: args.schedule_type,
       schedule_value: args.schedule_value,
+      timezone: args.timezone,
       context_mode: args.context_mode || 'group',
       targetJid,
       createdBy: groupFolder,

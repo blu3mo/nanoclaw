@@ -469,6 +469,7 @@ async function runQuery(
         'Skill',
         'NotebookEdit',
         'mcp__nanoclaw__*',
+        'mcp__north__*',
       ],
       env: sdkEnv,
       permissionMode: 'bypassPermissions',
@@ -483,6 +484,14 @@ async function runQuery(
             NANOCLAW_GROUP_FOLDER: containerInput.groupFolder,
             NANOCLAW_IS_MAIN: containerInput.isMain ? '1' : '0',
           },
+        },
+        // Remote HTTP MCP servers, bridged via mcp-remote.
+        // OAuth tokens persist in /home/node/.mcp-auth/ (mounted per-group).
+        // Initial auth requires running `npx mcp-remote <url>` locally and
+        // copying the resulting .mcp-auth/ to the server. See docs.
+        north: {
+          command: 'npx',
+          args: ['-y', 'mcp-remote', 'https://usenorth.app/api/mcp'],
         },
       },
       hooks: {

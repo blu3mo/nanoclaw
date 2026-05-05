@@ -176,6 +176,26 @@ function buildVolumeMounts(
     readonly: false,
   });
 
+  // Per-group .mcp-auth directory for OAuth tokens (used by mcp-remote for
+  // remote HTTP MCP servers like north). Each group has its own auth state.
+  const groupMcpAuthDir = path.join(
+    DATA_DIR,
+    'sessions',
+    group.folder,
+    '.mcp-auth',
+  );
+  fs.mkdirSync(groupMcpAuthDir, { recursive: true, mode: 0o777 });
+  try {
+    fs.chmodSync(groupMcpAuthDir, 0o777);
+  } catch {
+    /* best effort */
+  }
+  mounts.push({
+    hostPath: groupMcpAuthDir,
+    containerPath: '/home/node/.mcp-auth',
+    readonly: false,
+  });
+
   // Per-group IPC namespace: each group gets its own IPC directory
   // This prevents cross-group privilege escalation via IPC
   const groupIpcDir = resolveGroupIpcPath(group.folder);

@@ -1,6 +1,8 @@
-# Blueclaw デプロイ & 運用ガイド
+# Blueclaw デプロイガイド
 
-NanoClaw ベースの Blueclaw を Linux サーバーにデプロイし、運用するための手順。
+NanoClaw ベースの Blueclaw を Linux サーバーに **初回デプロイ** するための手順。
+
+**日常運用は [BLUECLAW_OPERATIONS.md](BLUECLAW_OPERATIONS.md) を参照。新規ユーザー追加は [BLUECLAW_ONBOARDING.md](BLUECLAW_ONBOARDING.md) を参照。**
 
 ---
 

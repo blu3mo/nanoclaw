@@ -9,7 +9,7 @@
 ## システム構成（概観）
 
 ```
-Vultr サーバー (45.32.24.119, Ubuntu 24.04)
+Vultr サーバー (<SERVER_IP>, Ubuntu 24.04)
 ├── /root/nanoclaw/                  # コードリポジトリ
 │   ├── src/                         # NanoClaw 本体
 │   ├── container/                   # コンテナイメージのソース
@@ -42,7 +42,7 @@ Vultr サーバー (45.32.24.119, Ubuntu 24.04)
 ## SSH 接続
 
 ```bash
-ssh -i ~/.ssh/blueclaw-vultr root@45.32.24.119
+ssh -i ~/.ssh/<your-key> root@<SERVER_IP>
 ```
 
 ---
@@ -54,7 +54,7 @@ ssh -i ~/.ssh/blueclaw-vultr root@45.32.24.119
 ### パターン A: NanoClaw 本体（src/）の変更
 
 ```bash
-ssh -i ~/.ssh/blueclaw-vultr root@45.32.24.119 '
+ssh -i ~/.ssh/<your-key> root@<SERVER_IP> '
   cd /root/nanoclaw && git pull -q && npm run build 2>&1 | tail -1
   systemctl restart nanoclaw
 '
@@ -65,7 +65,7 @@ ssh -i ~/.ssh/blueclaw-vultr root@45.32.24.119 '
 コンテナイメージの再ビルドが必要。さらに各グループの `agent-runner-src` キャッシュをクリアする。**これを忘れるとコンテナが古いコードを使い続ける**。
 
 ```bash
-ssh -i ~/.ssh/blueclaw-vultr root@45.32.24.119 '
+ssh -i ~/.ssh/<your-key> root@<SERVER_IP> '
   cd /root/nanoclaw && git pull -q
   ./container/build.sh 2>&1 | tail -1
   # キャッシュクリア（重要）
@@ -80,7 +80,7 @@ ssh -i ~/.ssh/blueclaw-vultr root@45.32.24.119 '
 git管理されているのは `groups/main/` と `groups/blueclaw_template/` のみ。実際にエージェントが読むのは各グループフォルダ（`discord_*`）にコピーされたもの。**git pull の後に手動コピーが必要**。
 
 ```bash
-ssh -i ~/.ssh/blueclaw-vultr root@45.32.24.119 '
+ssh -i ~/.ssh/<your-key> root@<SERVER_IP> '
   cd /root/nanoclaw && git checkout -- groups/ && git pull -q
   # 管理者は main からコピー
   cp groups/main/CLAUDE.md groups/discord_main/CLAUDE.md
@@ -102,7 +102,7 @@ ssh -i ~/.ssh/blueclaw-vultr root@45.32.24.119 '
 Next.js の standalone ビルドが必要。さらに静的ファイルとpublicを手動でコピーする必要がある（standalone モードの仕様）。
 
 ```bash
-ssh -i ~/.ssh/blueclaw-vultr root@45.32.24.119 '
+ssh -i ~/.ssh/<your-key> root@<SERVER_IP> '
   cd /root/nanoclaw && git pull -q
   cd web && npm run build 2>&1 | tail -1
   cp -r .next/static .next/standalone/web/.next/static 2>/dev/null
@@ -149,7 +149,7 @@ CHANNEL_ID=1234567890123456789
 USER_LABEL="User $USER_NUM"
 FOLDER="discord_user-$USER_NUM"
 
-ssh -i ~/.ssh/blueclaw-vultr root@45.32.24.119 "
+ssh -i ~/.ssh/<your-key> root@<SERVER_IP> "
   cd /root/nanoclaw
   cp -r groups/blueclaw_template/ groups/$FOLDER/
   chmod -R 777 groups/$FOLDER/
@@ -167,8 +167,8 @@ ssh -i ~/.ssh/blueclaw-vultr root@45.32.24.119 "
 "
 
 # Web token を発行
-curl -s -b "blueclaw-token=blueclaw-owner-2026" \
-  -X POST "http://45.32.24.119:3000/api/user-tokens" \
+curl -s -b "blueclaw-token=<OWNER_TOKEN>" \
+  -X POST "http://<SERVER_IP>:3000/api/user-tokens" \
   -H "Content-Type: application/json" \
   -d "{\"groupFolder\":\"$FOLDER\",\"label\":\"$USER_LABEL\"}"
 ```
@@ -176,7 +176,7 @@ curl -s -b "blueclaw-token=blueclaw-owner-2026" \
 ### 4. ユーザーに送る情報
 
 - **Discord**: Bot に DM するだけ（既にやっているはず）
-- **Web ログイン URL**: `http://45.32.24.119:3000/auth/<返ってきたトークン>` （これ1つで自動ログイン）
+- **Web ログイン URL**: `http://<SERVER_IP>:3000/auth/<返ってきたトークン>` （これ1つで自動ログイン）
 
 ### 5. 初回対話で Blueclaw が勝手にやること（CLAUDE.md の指示）
 
@@ -193,7 +193,7 @@ curl -s -b "blueclaw-token=blueclaw-owner-2026" \
 ## ユーザーの削除
 
 ```bash
-ssh -i ~/.ssh/blueclaw-vultr root@45.32.24.119 "
+ssh -i ~/.ssh/<your-key> root@<SERVER_IP> "
   FOLDER='discord_user-N'
   sqlite3 /root/nanoclaw/store/messages.db \"DELETE FROM registered_groups WHERE folder='$FOLDER'\"
   sqlite3 /root/nanoclaw/store/messages.db \"DELETE FROM scheduled_tasks WHERE group_folder='$FOLDER'\"
@@ -212,29 +212,29 @@ ssh -i ~/.ssh/blueclaw-vultr root@45.32.24.119 "
 
 | トークン種別 | アクセス範囲 | 環境変数/DB |
 |------------|-------------|------------|
-| **Owner token** | 全グループ、全機能 | `.env` の `BLUECLAW_OWNER_TOKEN`（現在: `blueclaw-owner-2026`） |
+| **Owner token** | 全グループ、全機能 | `.env` の `BLUECLAW_OWNER_TOKEN`（現在: `<OWNER_TOKEN>`） |
 | **User token** | 1つのグループ（自分のもの） | DB: `user_tokens` テーブル |
 | **Share token** | 1つのグループ（権限指定可） | DB: `share_tokens` テーブル |
 
 ### Magic auth URL（ログイン省略）
 
-`http://45.32.24.119:3000/auth/<token>` を開くと cookie が設定されてダッシュボードにリダイレクトされる。Owner token、User token どちらでも動く。
+`http://<SERVER_IP>:3000/auth/<token>` を開くと cookie が設定されてダッシュボードにリダイレクトされる。Owner token、User token どちらでも動く。
 
 ### User token の管理（API）
 
 ```bash
 # 一覧
-curl -s -b "blueclaw-token=blueclaw-owner-2026" "http://45.32.24.119:3000/api/user-tokens"
+curl -s -b "blueclaw-token=<OWNER_TOKEN>" "http://<SERVER_IP>:3000/api/user-tokens"
 
 # 作成
-curl -s -b "blueclaw-token=blueclaw-owner-2026" \
-  -X POST "http://45.32.24.119:3000/api/user-tokens" \
+curl -s -b "blueclaw-token=<OWNER_TOKEN>" \
+  -X POST "http://<SERVER_IP>:3000/api/user-tokens" \
   -H "Content-Type: application/json" \
   -d '{"groupFolder":"discord_user-N","label":"User N"}'
 
 # 無効化
-curl -s -b "blueclaw-token=blueclaw-owner-2026" \
-  -X DELETE "http://45.32.24.119:3000/api/user-tokens?token=<token>"
+curl -s -b "blueclaw-token=<OWNER_TOKEN>" \
+  -X DELETE "http://<SERVER_IP>:3000/api/user-tokens?token=<token>"
 ```
 
 ---
@@ -283,7 +283,7 @@ sqlite3 /root/nanoclaw/store/messages.db \
 `.env` の `TZ=` を変更して両サービス再起動するだけ:
 
 ```bash
-ssh -i ~/.ssh/blueclaw-vultr root@45.32.24.119 "
+ssh -i ~/.ssh/<your-key> root@<SERVER_IP> "
   sed -i 's/^TZ=.*/TZ=Asia/Tokyo/' /root/nanoclaw/.env
   systemctl restart nanoclaw blueclaw-web
 "
@@ -460,7 +460,7 @@ cp -r public .next/standalone/web/public
 ## サーバーが落ちた時の復旧手順
 
 ```bash
-ssh -i ~/.ssh/blueclaw-vultr root@45.32.24.119
+ssh -i ~/.ssh/<your-key> root@<SERVER_IP>
 
 # サービスステータス確認
 systemctl status nanoclaw blueclaw-web docker
@@ -497,9 +497,9 @@ journalctl -u nanoclaw --since "5 min ago" | head -50
 ```bash
 mkdir -p ~/blueclaw-backup/$(date +%Y-%m-%d)
 cd ~/blueclaw-backup/$(date +%Y-%m-%d)
-scp -i ~/.ssh/blueclaw-vultr root@45.32.24.119:/root/nanoclaw/store/messages.db .
-scp -i ~/.ssh/blueclaw-vultr root@45.32.24.119:/root/nanoclaw/.env .
-rsync -av -e "ssh -i ~/.ssh/blueclaw-vultr" root@45.32.24.119:/root/nanoclaw/groups/discord_main/ ./groups/discord_main/
+scp -i ~/.ssh/<your-key> root@<SERVER_IP>:/root/nanoclaw/store/messages.db .
+scp -i ~/.ssh/<your-key> root@<SERVER_IP>:/root/nanoclaw/.env .
+rsync -av -e "ssh -i ~/.ssh/<your-key>" root@<SERVER_IP>:/root/nanoclaw/groups/discord_main/ ./groups/discord_main/
 # ユーザーフォルダもrsync...
 ```
 

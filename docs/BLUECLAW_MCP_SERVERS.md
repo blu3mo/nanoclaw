@@ -62,10 +62,10 @@ mcp-remote https://usenorth.app/api/mcp
 ```bash
 USER_FOLDER="discord_user-1"
 
-scp -i ~/.ssh/blueclaw-vultr -r ~/.mcp-auth/* \
-  root@45.32.24.119:/root/nanoclaw/data/sessions/$USER_FOLDER/.mcp-auth/
+scp -i ~/.ssh/<your-key> -r ~/.mcp-auth/* \
+  root@<SERVER_IP>:/root/nanoclaw/data/sessions/$USER_FOLDER/.mcp-auth/
 
-ssh -i ~/.ssh/blueclaw-vultr root@45.32.24.119 "
+ssh -i ~/.ssh/<your-key> root@<SERVER_IP> "
   chmod -R 777 /root/nanoclaw/data/sessions/$USER_FOLDER/.mcp-auth/
 "
 ```
@@ -77,7 +77,7 @@ ssh -i ~/.ssh/blueclaw-vultr root@45.32.24.119 "
 ログでエラーが出ていないか確認:
 
 ```bash
-ssh -i ~/.ssh/blueclaw-vultr root@45.32.24.119 \
+ssh -i ~/.ssh/<your-key> root@<SERVER_IP> \
   'docker logs $(docker ps -q -f name=user-1) 2>&1 | grep -iE "north|mcp-remote|oauth"'
 ```
 
@@ -108,15 +108,15 @@ OAuth トークンには有効期限がある（north の場合は通常自動 r
 ```bash
 # 全グループに同じトークンをコピー
 for d in discord_main discord_user-1 discord_user-2; do
-  ssh -i ~/.ssh/blueclaw-vultr root@45.32.24.119 "
+  ssh -i ~/.ssh/<your-key> root@<SERVER_IP> "
     rm -rf /root/nanoclaw/data/sessions/$d/.mcp-auth
     mkdir -p /root/nanoclaw/data/sessions/$d/.mcp-auth
   "
-  scp -i ~/.ssh/blueclaw-vultr -r ~/.mcp-auth/* \
-    root@45.32.24.119:/root/nanoclaw/data/sessions/$d/.mcp-auth/
+  scp -i ~/.ssh/<your-key> -r ~/.mcp-auth/* \
+    root@<SERVER_IP>:/root/nanoclaw/data/sessions/$d/.mcp-auth/
 done
 
-ssh -i ~/.ssh/blueclaw-vultr root@45.32.24.119 \
+ssh -i ~/.ssh/<your-key> root@<SERVER_IP> \
   'chmod -R 777 /root/nanoclaw/data/sessions/'
 ```
 
@@ -153,7 +153,7 @@ allowedTools: [
 ### 2. ビルド・デプロイ
 
 ```bash
-ssh -i ~/.ssh/blueclaw-vultr root@45.32.24.119 '
+ssh -i ~/.ssh/<your-key> root@<SERVER_IP> '
   cd /root/nanoclaw && git pull -q
   ./container/build.sh 2>&1 | tail -1
   rm -rf /root/nanoclaw/data/sessions/*/agent-runner-src/
